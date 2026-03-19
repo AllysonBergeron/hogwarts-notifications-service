@@ -1,0 +1,76 @@
+# Hogwarts — Notifications Service  
+## Take-Home Assignment  
+
+### Overview  
+Build a small, serverless notifications service so professors and students can send and receive enchanted notices (e.g., "An owl has delivered your letter"). The service should be simple to implement in Node.js and AWS and show sensible architecture, code structure, and explanations. Candidates must publish their solution to a public GitHub repository with a clear README and runnable instructions.  
+
+### Goals (what we want to see)  
+- Clean, minimal implementation showing practical knowledge of Node.js, AWS Lambda, API Gateway (HTTP API), DynamoDB, and SQS.  
+- Concise architecture choices and explanations in the repo README.  
+- Basic validation, error handling, and sensible project structure.  
+- Candidate should be able to explain design decisions in an interview.  
+
+### Required Endpoints  
+1. **POST /notifications**  
+   - Validate input, persist notification in DynamoDB, publish to SQS, and return created record with id and timestamp.  
+2. **GET /notifications/{recipient}**  
+   - Return notifications for recipient with optional `?limit` parameter.  
+
+### Suggested Data Model  
+```json  
+{  
+  "id": "uuid-v4",  
+  "recipient": "Hermione Granger",  
+  "message": "Reminder: Potions homework due tomorrow",  
+  "status": "queued",   // queued | delivered (optional)  
+  "createdAt": "2025-10-02T12:34:56Z"  
+}  
+```  
+
+### AWS Components (expected)  
+- **API Gateway (HTTP API)** — exposes endpoints.  
+- **AWS Lambda (Node.js)** — request handlers.  
+- **DynamoDB** — stores notifications.  
+- **SQS** — queue for delivery messages.  
+- Optional: SQS consumer Lambda to mark items delivered or log delivery.  
+
+### Deliverables (must include)  
+- Public GitHub repository with source code.  
+- Infra-as-code (optional but preferred).  
+- `README.md` with architecture, run instructions, and curl examples.  
+- `package.json` with scripts (start, local, deploy, test).  
+- `.env.example` if env vars required.  
+
+### Minimal Acceptance Criteria  
+- Repo is public with README instructions.  
+- POST and GET endpoints implemented.  
+- Data persists to DynamoDB and messages sent to SQS.  
+- Readable, organized code.  
+- Basic validation and error responses.  
+
+### Bonus (extra points)  
+- SQS consumer Lambda to mark notifications as delivered.  
+- Authentication on API (API key or Cognito).  
+- Unit/integration tests.  
+- Rate limiting or idempotency on POST.  
+- Diagram in README.  
+
+### Suggested Scoring Rubric (0–3 scale)  
+- Functionality (POST + GET).  
+- DynamoDB integration & data model.  
+- SQS integration (enqueue on POST).  
+- Code quality & structure.  
+- README & explanations.  
+- Error handling & validation.  
+- Bonus features (auth, tests, SQS consumer).  
+
+### Example curl snippets  
+**Create:**  
+```bash  
+curl -X POST "https://<api>/notifications" -H "Content-Type: application/json" -d '{"recipient":"Harry Potter","message":"Owl: You have a letter."}'  
+```  
+
+**Get:**  
+```bash  
+curl "https://<api>/notifications/Harry Potter?limit=20"  
+```
