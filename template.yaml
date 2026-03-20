@@ -12,6 +12,27 @@ Globals:
       LogFormat: JSON
 
 Resources:
+  NotificationsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: notifications
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: recipient
+          AttributeType: S
+        - AttributeName: createdAt
+          AttributeType: S
+      KeySchema:
+        - AttributeName: recipient
+          KeyType: HASH
+        - AttributeName: createdAt
+          KeyType: RANGE
+
+  NotificationsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: notifications-queue
+
   CreateNotificationFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -20,12 +41,45 @@ Resources:
       Runtime: nodejs20.x
       Architectures:
         - x86_64
+
+      Environment:
+        Variables:
+          NOTIFICATIONS_TABLE_NAME: !Ref NotificationsTable
+          NOTIFICATIONS_QUEUE_URL: !Ref NotificationsQueue
+
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref NotificationsTable
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt NotificationsQueue.QueueName
+
       Events:
         CreateNotificationApi:
           Type: Api
           Properties:
             Path: /notifications
             Method: post
+            
+  GetNotificationsFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: get-notifications/
+      Handler: app.lambdaHandler
+      Runtime: nodejs20.x
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          NOTIFICATIONS_TABLE_NAME: !Ref NotificationsTable
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref NotificationsTable
+      Events:
+        GetNotificationsApi:
+          Type: Api
+          Properties:
+            Path: /notifications/{recipient}
+            Method: get
 
 Outputs:
   CreateNotificationApi:
@@ -39,3 +93,7 @@ Outputs:
   CreateNotificationFunctionIamRole:
     Description: IAM role created for the create notification function
     Value: !GetAtt CreateNotificationFunctionRole.Arn
+
+  NotificationsTableName:
+    Description: DynamoDB table name for notifications
+    Value: !Ref NotificationsTable
