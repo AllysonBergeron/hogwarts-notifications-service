@@ -12,13 +12,17 @@
  */
 
 export const lambdaHandler = async (event, context) => {
-    const response = {
-      statusCode: 200,
-      body: JSON.stringify({
-        message: 'hello world',
-      })
-    };
-
-    return response;
+  const response = {
+    statusCode: 201,
+    body: JSON.stringify({
+      id: 'fake-id',
+      recipient: 'Harry Potter',
+      message: 'Owl: You have a letter.',
+      status: 'queued',
+      createdAt: new Date().toISOString()
+    })
   };
+
+  return response;
+};
   
