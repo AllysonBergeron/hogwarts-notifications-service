@@ -67,16 +67,17 @@ SQS decouples notification creation from delivery processing.
 
 ```mermaid
 flowchart LR
-    Client[Client / curl] --> APIGW[API Gateway]
+    Client[Client / curl] --> APIGW[API Gateway]
 
-    APIGW --> POSTLambda[CreateNotification Lambda]
-    APIGW --> GETLambda[GetNotifications Lambda]
+    APIGW --> POSTLambda[CreateNotification Lambda]
+    APIGW --> GETLambda[GetNotifications Lambda]
 
-    POSTLambda --> DDB[(DynamoDB Notifications Table)]
-    POSTLambda --> SQS[SQS Notifications Queue]
+    POSTLambda --> DDB[(DynamoDB Notifications Table)]
+    GETLambda --> DDB
 
-    SQS --> Consumer[DeliveryConsumer Lambda]
-    Consumer --> DDB
+    POSTLambda --> SQS[SQS Notifications Queue]
+    SQS --> Consumer[DeliveryConsumer Lambda]
+    Consumer --> DDB
 ```
 
 # Data Model
