@@ -1,127 +1,464 @@
-# hogwarts-notifications-service
+# Hogwarts Notifications Service
 
-This project contains source code and supporting files for a serverless application that you can deploy with the SAM CLI. It includes the following files and folders.
+A small serverless notifications service built with **Node.js**, **AWS Lambda**, **API Gateway**, **DynamoDB**, and **SQS**. The service allows professors and students to send and retrieve enchanted notifications (for example: *"An owl has delivered your letter"*).
 
-- hello-world - Code for the application's Lambda function.
-- events - Invocation events that you can use to invoke the function.
-- hello-world/tests - Unit tests for the application code. 
-- template.yaml - A template that defines the application's AWS resources.
+This project was implemented as a minimal but production-style architecture demonstrating clean structure, validation, testing, and asynchronous processing.
 
-The application uses several AWS resources, including Lambda functions and an API Gateway API. These resources are defined in the `template.yaml` file in this project. You can update the template to add AWS resources through the same deployment process that updates your application code.
+---
 
-If you prefer to use an integrated development environment (IDE) to build and test your application, you can use the AWS Toolkit.  
-The AWS Toolkit is an open source plug-in for popular IDEs that uses the SAM CLI to build and deploy serverless applications on AWS. The AWS Toolkit also adds a simplified step-through debugging experience for Lambda function code. See the following links to get started.
+# Overview
 
-* [CLion](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [GoLand](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [IntelliJ](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [WebStorm](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [Rider](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [PhpStorm](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [PyCharm](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [RubyMine](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [DataGrip](https://docs.aws.amazon.com/toolkit-for-jetbrains/latest/userguide/welcome.html)
-* [VS Code](https://docs.aws.amazon.com/toolkit-for-vscode/latest/userguide/welcome.html)
-* [Visual Studio](https://docs.aws.amazon.com/toolkit-for-visual-studio/latest/user-guide/welcome.html)
+The service supports two core operations:
 
-## Deploy the sample application
+## Create a notification
+`POST /notifications`
 
-The Serverless Application Model Command Line Interface (SAM CLI) is an extension of the AWS CLI that adds functionality for building and testing Lambda applications. It uses Docker to run your functions in an Amazon Linux environment that matches Lambda. It can also emulate your application's build environment and API.
+Creates a notification, stores it in DynamoDB, and publishes a message to SQS.
 
-To use the SAM CLI, you need the following tools.
+## Retrieve notifications
+`GET /notifications/{recipient}`
 
-* SAM CLI - [Install the SAM CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
-* Node.js - [Install Node.js 20](https://nodejs.org/en/), including the NPM package management tool.
-* Docker - [Install Docker community edition](https://hub.docker.com/search/?type=edition&offering=community)
+Returns notifications for a given recipient, optionally limited by query parameter.
 
-To build and deploy your application for the first time, run the following in your shell:
+---
+
+# Architecture
+
+The system uses a simple event-driven serverless design:
+
+## API Layer
+
+API Gateway exposes HTTP endpoints.
+
+
+## Compute Layer
+
+### CreateNotification Lambda
+
+Validates input
+Writes notification to DynamoDB
+Publishes message to SQS
+
+
+### GetNotifications Lambda
+
+Queries DynamoDB by recipient
+
+
+### DeliveryConsumer Lambda (bonus feature)
+
+Consumes SQS messages
+Updates notification status from `queued` → `delivered`
+
+
+## Storage Layer
+
+DynamoDB stores notification records.
+
+
+## Messaging Layer
+
+SQS decouples notification creation from delivery processing.
+
+
+---
+
+# Architecture Diagram
+
+```mermaid
+flowchart LR
+    Client[Client / curl] --> APIGW[API Gateway]
+
+    APIGW --> POSTLambda[CreateNotification Lambda]
+    APIGW --> GETLambda[GetNotifications Lambda]
+
+    POSTLambda --> DDB[(DynamoDB Notifications Table)]
+    POSTLambda --> SQS[SQS Notifications Queue]
+
+    SQS --> Consumer[DeliveryConsumer Lambda]
+    Consumer --> DDB
+```
+
+# Data Model
+
+Each notification is stored as:
+
+```json
+{
+  "id": "uuid-v4",
+  "recipient": "Harry Potter",
+  "message": "Owl: You have a letter.",
+  "status": "queued",
+  "createdAt": "2026-03-20T19:09:04.302Z"
+}
+```
+
+---
+
+# DynamoDB Design
+
+Table keys:
+
+Partition key:
+
+```
+recipient
+```
+
+Sort key:
+
+```
+createdAt
+```
+
+This design supports the required access pattern:
+
+```
+GET /notifications/{recipient}
+```
+
+and allows notifications to be sorted chronologically.
+
+---
+
+# Project Structure
+
+```
+hogwarts-notifications-service/
+
+create-notification/
+  app.mjs
+  package.json
+  tests/
+
+get-notifications/
+  app.mjs
+  package.json
+  tests/
+
+delivery-consumer/
+  app.mjs
+  package.json
+
+events/
+template.yaml
+samconfig.toml
+README.md
+```
+
+---
+
+# Deployment Instructions
+
+## Prerequisites
+
+You must have installed:
+
+
+AWS CLI
+AWS SAM CLI
+Node.js 20+
+An AWS account with credentials configured
+
+
+Verify:
+
+```bash
+aws --version
+sam --version
+node --version
+```
+
+---
+
+# Install Dependencies
+
+Install dependencies for each Lambda:
+
+```bash
+cd create-notification
+npm install
+
+cd ../get-notifications
+npm install
+
+cd ../delivery-consumer
+npm install
+
+cd ..
+```
+
+---
+
+# Build
+
+Build the project:
 
 ```bash
 sam build
+```
+
+---
+
+# Deploy
+
+First deployment:
+
+```bash
 sam deploy --guided
 ```
 
-The first command will build the source of your application. The second command will package and deploy your application to AWS, with a series of prompts:
+Recommended answers:
 
-* **Stack Name**: The name of the stack to deploy to CloudFormation. This should be unique to your account and region, and a good starting point would be something matching your project name.
-* **AWS Region**: The AWS region you want to deploy your app to.
-* **Confirm changes before deploy**: If set to yes, any change sets will be shown to you before execution for manual review. If set to no, the AWS SAM CLI will automatically deploy application changes.
-* **Allow SAM CLI IAM role creation**: Many AWS SAM templates, including this example, create AWS IAM roles required for the AWS Lambda function(s) included to access AWS services. By default, these are scoped down to minimum required permissions. To deploy an AWS CloudFormation stack which creates or modifies IAM roles, the `CAPABILITY_IAM` value for `capabilities` must be provided. If permission isn't provided through this prompt, to deploy this example you must explicitly pass `--capabilities CAPABILITY_IAM` to the `sam deploy` command.
-* **Save arguments to samconfig.toml**: If set to yes, your choices will be saved to a configuration file inside the project, so that in the future you can just re-run `sam deploy` without parameters to deploy changes to your application.
+Stack name:
 
-You can find your API Gateway Endpoint URL in the output values displayed after deployment.
+```
+hogwarts-notifications-service
+```
 
-## Use the SAM CLI to build and test locally
+Region:
 
-Build your application with the `sam build` command.
+```
+us-east-1
+```
+
+Allow IAM role creation:
+
+```
+Y
+```
+
+Save configuration:
+
+```
+Y
+```
+
+Subsequent deployments:
 
 ```bash
-hogwarts-notifications-service$ sam build
+sam deploy
 ```
 
-The SAM CLI installs dependencies defined in `hello-world/package.json`, creates a deployment package, and saves it in the `.aws-sam/build` folder.
+---
 
-Test a single function by invoking it directly with a test event. An event is a JSON document that represents the input that the function receives from the event source. Test events are included in the `events` folder in this project.
+# Running the Service
 
-Run functions locally and invoke them with the `sam local invoke` command.
+After deployment, SAM outputs the API endpoint:
+
+Example:
+
+```
+https://<api-id>.execute-api.us-east-1.amazonaws.com/Prod/notifications
+```
+
+---
+# Live API (optional)
+
+A deployed version of this service is available here:
+
+POST:
+https://9rqhbqecwd.execute-api.us-east-1.amazonaws.com/Prod/notifications
+
+GET example:
+https://9rqhbqecwd.execute-api.us-east-1.amazonaws.com/Prod/notifications/Harry%20Potter
+
+Note: This environment may be removed after evaluation. The service can be redeployed using the instructions above.
+
+# Example Requests
+
+## Create a notification
 
 ```bash
-hogwarts-notifications-service$ sam local invoke HelloWorldFunction --event events/event.json
+curl -X POST "https://<api>/Prod/notifications" \
+-H "Content-Type: application/json" \
+-d '{"recipient":"Harry Potter","message":"Owl delivery"}'
 ```
 
-The SAM CLI can also emulate your application's API. Use the `sam local start-api` to run the API locally on port 3000.
+Example response:
+
+```json
+{
+  "id":"uuid",
+  "recipient":"Harry Potter",
+  "message":"Owl delivery",
+  "status":"queued",
+  "createdAt":"timestamp"
+}
+```
+
+---
+
+## Get notifications for a recipient
 
 ```bash
-hogwarts-notifications-service$ sam local start-api
-hogwarts-notifications-service$ curl http://localhost:3000/
+curl "https://<api>/Prod/notifications/Harry%20Potter"
 ```
 
-The SAM CLI reads the application template to determine the API's routes and the functions that they invoke. The `Events` property on each function's definition includes the route and method for each path.
+Example response:
 
-```yaml
-      Events:
-        HelloWorld:
-          Type: Api
-          Properties:
-            Path: /hello
-            Method: get
+```json
+[
+  {
+    "recipient":"Harry Potter",
+    "message":"Owl delivery",
+    "status":"delivered"
+  }
+]
 ```
 
-## Add a resource to your application
-The application template uses AWS Serverless Application Model (AWS SAM) to define application resources. AWS SAM is an extension of AWS CloudFormation with a simpler syntax for configuring common serverless application resources such as functions, triggers, and APIs. For resources not included in [the SAM specification](https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md), you can use standard [AWS CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) resource types.
+---
 
-## Fetch, tail, and filter Lambda function logs
-
-To simplify troubleshooting, SAM CLI has a command called `sam logs`. `sam logs` lets you fetch logs generated by your deployed Lambda function from the command line. In addition to printing the logs on the terminal, this command has several nifty features to help you quickly find the bug.
-
-`NOTE`: This command works for all AWS Lambda functions; not just the ones you deploy using SAM.
+## Get notifications with limit
 
 ```bash
-hogwarts-notifications-service$ sam logs -n HelloWorldFunction --stack-name hogwarts-notifications-service --tail
+curl "https://<api>/Prod/notifications/Harry%20Potter?limit=1"
 ```
 
-You can find more information and examples about filtering Lambda function logs in the [SAM CLI Documentation](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-logging.html).
+---
 
-## Unit tests
+# Running Tests
 
-Tests are defined in the `hello-world/tests` folder in this project. Use NPM to install the [Mocha test framework](https://mochajs.org/) and run unit tests.
+Unit tests were added to demonstrate validation logic and handler behavior.
+
+## Run POST tests
 
 ```bash
-hogwarts-notifications-service$ cd hello-world
-hello-world$ npm install
-hello-world$ npm run test
+cd create-notification
+npm test
 ```
 
-## Cleanup
-
-To delete the sample application that you created, use the AWS CLI. Assuming you used your project name for the stack name, you can run the following:
+## Run GET tests
 
 ```bash
-sam delete --stack-name hogwarts-notifications-service
+cd ../get-notifications
+npm test
 ```
 
-## Resources
+Tests cover:
 
-See the [AWS SAM developer guide](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/what-is-sam.html) for an introduction to SAM specification, the SAM CLI, and serverless application concepts.
+Create notification:
 
-Next, you can use AWS Serverless Application Repository to deploy ready to use Apps that go beyond hello world samples and learn how authors developed their applications: [AWS Serverless Application Repository main page](https://aws.amazon.com/serverless/serverlessrepo/)
+
+valid request returns 201
+invalid JSON returns 400
+missing recipient returns 400
+missing message returns 400
+
+
+Get notifications:
+
+
+valid query returns results
+missing recipient returns 400
+invalid limit returns 400
+
+
+---
+
+# Validation and Error Handling
+
+The service validates:
+
+POST:
+
+
+invalid JSON body
+missing recipient
+missing message
+blank values
+
+
+GET:
+
+
+missing recipient
+invalid limit parameter
+
+
+Infrastructure:
+
+
+DynamoDB failures return 500
+SQS failures return 500
+
+
+---
+
+# Bonus Features Implemented
+
+The following optional improvements were implemented:
+
+## Unit Tests
+
+Basic handler tests validating success and failure scenarios.
+
+## SQS Consumer Lambda
+
+Background worker that:
+
+
+consumes queue messages
+updates notification status to delivered
+
+
+## Architecture Diagram
+
+Added to README for clarity.
+
+---
+
+# Design Choices and Tradeoffs
+
+I intentionally kept the architecture simple and focused on the assignment requirements.
+
+Design decisions:
+
+## JavaScript vs TypeScript
+
+JavaScript was used to minimize tooling complexity and focus on architecture and behavior. TypeScript could be added later for stronger type safety.
+
+## DynamoDB key design
+
+Recipient was chosen as partition key because it matches the required query pattern.
+
+## SQS usage
+
+SQS was used to decouple creation from delivery processing and demonstrate event-driven architecture.
+
+## Testing scope
+
+Tests focus on handler validation and behavior rather than full AWS integration to keep implementation concise.
+
+---
+
+# Improvements With More Time
+
+If extended further I would add:
+
+
+integration tests using local SAM invoke
+authentication (API key or Cognito)
+idempotency protection on POST
+structured logging strategy
+observability (CloudWatch dashboards)
+tighter IAM policies
+pagination support for GET
+
+
+---
+
+# Summary
+
+This implementation demonstrates:
+
+
+Serverless architecture design
+Node.js Lambda development
+DynamoDB data modeling
+SQS event processing
+Infrastructure as code
+Validation and error handling
+Unit testing
+
+Environment will be removed after review.

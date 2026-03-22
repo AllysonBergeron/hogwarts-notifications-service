@@ -1,0 +1,13 @@
+{
+    "name": "delivery-consumer",
+    "version": "1.0.0",
+    "description": "SQS consumer Lambda for Hogwarts notifications service",
+    "main": "app.mjs",
+    "type": "module",
+    "author": "Allyson Bergeron",
+    "license": "MIT",
+    "dependencies": {
+      "@aws-sdk/client-dynamodb": "^3.600.0",
+      "@aws-sdk/lib-dynamodb": "^3.600.0"
+    }
+  }

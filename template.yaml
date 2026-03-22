@@ -59,7 +59,7 @@ Resources:
           Properties:
             Path: /notifications
             Method: post
-            
+
   GetNotificationsFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -80,6 +80,27 @@ Resources:
           Properties:
             Path: /notifications/{recipient}
             Method: get
+            
+  DeliveryConsumerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: delivery-consumer/
+      Handler: app.lambdaHandler
+      Runtime: nodejs20.x
+      Architectures:
+        - x86_64
+      Environment:
+        Variables:
+          NOTIFICATIONS_TABLE_NAME: !Ref NotificationsTable
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref NotificationsTable
+      Events:
+        NotificationsQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt NotificationsQueue.Arn
+            BatchSize: 10
 
 Outputs:
   CreateNotificationApi:
