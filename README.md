@@ -433,19 +433,34 @@ Tests focus on handler validation and behavior rather than full AWS integration 
 
 ---
 
+# Updates Based on Recent Changes
+
+## IAM Policies
+
+The IAM policies for each Lambda function have been refined to follow the principle of least privilege. Each function now has custom inline policies granting only the necessary DynamoDB actions:
+
+- **CreateNotificationFunction**: `dynamodb:PutItem` and `dynamodb:UpdateItem`
+- **GetNotificationsFunction**: `dynamodb:GetItem` and `dynamodb:Query`
+- **DeliveryConsumerFunction**: `dynamodb:UpdateItem` and `dynamodb:DeleteItem`
+
+This ensures a more secure implementation by adhering to the principle of least privilege.
+
+---
+
 # Improvements With More Time
 
-If extended further I would add:
+The following improvements were previously listed as potential enhancements. Some of these have now been implemented:
 
+- **Tighter IAM Policies**: Implemented as part of the recent changes.
 
-integration tests using local SAM invoke
-authentication (API key or Cognito)
-idempotency protection on POST
-structured logging strategy
-observability (CloudWatch dashboards)
-tighter IAM policies
-pagination support for GET
+Other potential improvements include:
 
+- Integration tests using local SAM invoke
+- Authentication (API key or Cognito)
+- Idempotency protection on POST
+- Structured logging strategy
+- Observability (CloudWatch dashboards)
+- Pagination support for GET
 
 ---
 
