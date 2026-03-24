@@ -5,8 +5,10 @@ const dynamoClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoClient);
 
 export const lambdaHandler = async (event) => {
-  try {
-    for (const record of event.Records || []) {
+  const results = [];
+
+  for (const record of event.Records || []) {
+    try {
       const notification = JSON.parse(record.body);
 
       await docClient.send(
@@ -25,17 +27,19 @@ export const lambdaHandler = async (event) => {
           }
         })
       );
+
+      results.push({ recordId: record.messageId, status: 'success' });
+    } catch (error) {
+      console.error(`Error processing record ${record.messageId}:`, error);
+      results.push({ recordId: record.messageId, status: 'failed', error: error.message });
     }
-
-    return {
-      statusCode: 200,
-      body: JSON.stringify({
-        message: 'processed messages successfully'
-      })
-    };
-  } catch (error) {
-    console.error('Error processing notification queue:', error);
-
-    throw error;
   }
+
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      message: 'Batch processing complete',
+      results
+    })
+  };
 };

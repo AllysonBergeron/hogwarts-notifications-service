@@ -28,10 +28,18 @@ Resources:
         - AttributeName: createdAt
           KeyType: RANGE
 
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: notifications-dlq
+
   NotificationsQueue:
     Type: AWS::SQS::Queue
     Properties:
       QueueName: notifications-queue
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
+        maxReceiveCount: 5
 
   CreateNotificationFunction:
     Type: AWS::Serverless::Function
@@ -41,18 +49,22 @@ Resources:
       Runtime: nodejs20.x
       Architectures:
         - x86_64
-
       Environment:
         Variables:
           NOTIFICATIONS_TABLE_NAME: !Ref NotificationsTable
           NOTIFICATIONS_QUEUE_URL: !Ref NotificationsQueue
-
+          DLQ_URL: !Ref DeadLetterQueue
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref NotificationsTable
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:PutItem
+              Resource: !GetAtt NotificationsTable.Arn
         - SQSSendMessagePolicy:
             QueueName: !GetAtt NotificationsQueue.QueueName
-
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt DeadLetterQueue.QueueName
       Events:
         CreateNotificationApi:
           Type: Api
@@ -72,15 +84,20 @@ Resources:
         Variables:
           NOTIFICATIONS_TABLE_NAME: !Ref NotificationsTable
       Policies:
-        - DynamoDBReadPolicy:
-            TableName: !Ref NotificationsTable
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+              Resource: !GetAtt NotificationsTable.Arn
       Events:
         GetNotificationsApi:
           Type: Api
           Properties:
             Path: /notifications/{recipient}
             Method: get
-            
+
   DeliveryConsumerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -93,8 +110,12 @@ Resources:
         Variables:
           NOTIFICATIONS_TABLE_NAME: !Ref NotificationsTable
       Policies:
-        - DynamoDBCrudPolicy:
-            TableName: !Ref NotificationsTable
+        - Version: "2012-10-17"
+          Statement:
+            - Effect: Allow
+              Action:
+                - dynamodb:UpdateItem
+              Resource: !GetAtt NotificationsTable.Arn
       Events:
         NotificationsQueueEvent:
           Type: SQS

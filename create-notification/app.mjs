@@ -63,12 +63,35 @@ export const lambdaHandler = async (event) => {
       })
     );
 
-    await sqsClient.send(
-      new SendMessageCommand({
-        QueueUrl: process.env.NOTIFICATIONS_QUEUE_URL,
-        MessageBody: JSON.stringify(notification)
-      })
-    );
+    try {
+      await sqsClient.send(
+        new SendMessageCommand({
+          QueueUrl: process.env.NOTIFICATIONS_QUEUE_URL,
+          MessageBody: JSON.stringify(notification)
+        })
+      );
+    } catch (sqsError) {
+      console.error('SQS publish failed, sending to DLQ:', sqsError);
+
+      try {
+        await sqsClient.send(
+          new SendMessageCommand({
+            QueueUrl: process.env.DLQ_URL,
+            MessageBody: JSON.stringify({
+              notification,
+              error: sqsError.message
+            })
+          })
+        );
+        return {
+          statusCode: 201,
+          body: JSON.stringify(notification)
+        };
+      } catch (dlqError) {
+        console.error('Failed to send message to DLQ:', dlqError);
+        throw new Error('Failed to publish notification to SQS and DLQ');
+      }
+    }
 
     return {
       statusCode: 201,
